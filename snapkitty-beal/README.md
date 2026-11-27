@@ -23,7 +23,7 @@ This repository is an executable architecture with an explicit mathematical trus
 - `asp/`: clingo rules plus a facts generator driven by the obligations
 - `ontology/`: OWL/RDF ontology (v2.0.0-owl2)
 - `dag/`: Mustache renderer, render driver, and the `red2.preserve` aspect DAG node
-- `hardware/`: Bluespec bounded Beal-instance kernels and C11 reference
+- `hardware/`: Bluespec bounded Beal-instance kernels and C11 references (`beal_ref.c`/`beal_ref.h` for uint64, `c11/beal_check.c`/`c11/beal_check.h` for uint32)
 - `ats/`: ATS2 contract driving the C11 reference; `hardware/ats/` holds a pure-ATS bounded check
 - `docs/`: provenance and mathematical status
 - `templates/`: Mustache obligation template (source of truth for the rendered node format)
@@ -59,7 +59,12 @@ make asp-check
 
 ## Hardware
 
-The Bluespec module and C11 reference check bounded Beal instances `A^x + B^y = C^z` with explicit overflow and validity status. They are a hardware/software interface demonstration. The bounded check is intentionally not presented as evidence for Beal, whose statement is open and whose exponents are unbounded. The ATS2 file drives the C11 reference through a foreign-function interface and prints the results.
+The Bluespec modules and C11 references check bounded Beal instances `A^x + B^y = C^z` with explicit overflow and validity status. They are a hardware/software interface demonstration. The bounded check is intentionally not presented as evidence for Beal, whose statement is open and whose exponents are unbounded. The ATS2 file drives the C11 reference through a foreign-function interface and prints the results.
+
+Two C11 libraries are provided, both general (no `main`, no hardcoded instance):
+
+- `hardware/beal_ref.c` / `hardware/beal_ref.h`: uint64 instance checker — general exponents via binary exponentiation, overflow-safe (pure ISO C11 division-based checked multiply), status codes `EQUAL` / `NOT_EQUAL` / `OVERFLOW` / `INVALID`, plus the square kernel and an `int`-typed wrapper for ATS FFI.
+- `hardware/c11/beal_check.c` / `hardware/c11/beal_check.h`: uint32 instance checker — checked 32-bit multiply/add/power widened to 64 bits, status codes `BEAL32_EQUAL` / `BEAL32_NOT_EQUAL` / `BEAL32_OVERFLOW` / `BEAL32_INVALID`, with fast paths for bases 0 and 1. `make c-test` runs 35 checks against it (checked arithmetic, powers, the Beal example 3^3+6^3=3^5, non-solutions, invalid inputs, and the u32 overflow boundaries).
 
 ## Proof receipts
 

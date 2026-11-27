@@ -33,6 +33,7 @@ agda-check:
 
 c-check:
 	$(CC) -std=c11 -Wall -Wextra -Werror -pedantic -c hardware/beal_ref.c -o /tmp/beal_ref.o
+	$(CC) -std=c11 -Wall -Wextra -Werror -pedantic -Ihardware/c11 -c hardware/c11/beal_check.c -o /tmp/beal_check.o
 
 # Build and run the bounded Beal-instance edge-case tests (23 checks).
 c-test:
@@ -40,6 +41,10 @@ c-test:
 		examples/beal_instance_test.c hardware/beal_ref.c \
 		-o /tmp/beal_instance_test
 	/tmp/beal_instance_test
+	$(CC) -std=c11 -Wall -Wextra -Werror -pedantic -Ihardware/c11 \
+		examples/beal_check_u32_test.c hardware/c11/beal_check.c \
+		-o /tmp/beal_check_u32_test
+	/tmp/beal_check_u32_test
 
 # Build and run the ATS2 contract program against the C reference.
 # patscc leaves an intermediate beal_contract_dats.c beside the source;
