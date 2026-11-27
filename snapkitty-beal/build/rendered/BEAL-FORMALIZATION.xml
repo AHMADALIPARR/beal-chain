@@ -1,0 +1,15 @@
+
+
+<proof-obligation id="BEAL-FORMALIZATION" theorem="BEAL-HOL-001">
+  <source-sha256>ed06a7b792c8a6de0b656f55ee430599d93fbdda7083c31a7a60d3d25176c65b</source-sha256>
+  <kind>Agda-formalization</kind>
+  <status>open</status>
+  <dependencies>
+    
+  </dependencies>
+  <acceptance>
+    <agda-kernel-check required="true" />
+    <source-lineage-check required="true" />
+    <independent-receipt required="true" />
+  </acceptance>
+</proof-obligation>

@@ -1,14 +1,146 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- Copyright (C) 2026 AHMADALIPARR -->
 <!-- SPDX-License-Identifier: AGPL-3.0-only -->
-<rdf:RDF xmlns="urn:snapkitty:ontology#" xml:base="urn:snapkitty:ontology" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:rdfs="http://www.w3.org/2000/01/rdf-schema#" xmlns:owl="http://www.w3.org/2002/07/owl#">
-  <owl:Ontology rdf:about="urn:snapkitty:ontology"/>
-  <owl:Class rdf:about="#Theorem"/><owl:Class rdf:about="#Conjecture"/><owl:Class rdf:about="#ProofObligation"/><owl:Class rdf:about="#ProofReceipt"/><owl:Class rdf:about="#SourceArtifact"/>
-  <owl:ObjectProperty rdf:about="#hasObligation"><rdfs:domain rdf:resource="#Theorem"/><rdfs:range rdf:resource="#ProofObligation"/></owl:ObjectProperty>
-  <owl:ObjectProperty rdf:about="#derivedFrom"><rdfs:domain rdf:resource="#ProofObligation"/><rdfs:range rdf:resource="#SourceArtifact"/></owl:ObjectProperty>
-  <owl:ObjectProperty rdf:about="#hasReceipt"><rdfs:domain rdf:resource="#ProofObligation"/><rdfs:range rdf:resource="#ProofReceipt"/></owl:ObjectProperty>
-  <owl:ObjectProperty rdf:about="#dependsOn"><rdfs:domain rdf:resource="#ProofObligation"/><rdfs:range rdf:resource="#ProofObligation"/></owl:ObjectProperty>
-  <owl:DatatypeProperty rdf:about="#epistemicStatus"/><owl:DatatypeProperty rdf:about="#sha256"/><owl:DatatypeProperty rdf:about="#kernelAccepted"/>
-  <owl:NamedIndividual rdf:about="#Beal"><rdf:type rdf:resource="#Conjecture"/><epistemicStatus>open</epistemicStatus></owl:NamedIndividual>
-  <owl:NamedIndividual rdf:about="#FermatLastTheorem"><rdf:type rdf:resource="#Theorem"/><epistemicStatus>proven</epistemicStatus></owl:NamedIndividual>
+<rdf:RDF
+  xmlns="urn:snapkitty:ontology#"
+  xml:base="urn:snapkitty:ontology"
+  xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+  xmlns:rdfs="http://www.w3.org/2000/01/rdf-schema#"
+  xmlns:owl="http://www.w3.org/2002/07/owl#"
+  xmlns:xsd="http://www.w3.org/2001/XMLSchema#">
+
+  <owl:Ontology rdf:about="urn:snapkitty:ontology">
+    <rdfs:label>SnapKitty Sovereign Verification &amp; Provenance Ontology</rdfs:label>
+    <owl:versionInfo>2.0.0-owl2</owl:versionInfo>
+  </owl:Ontology>
+
+  <!-- Core Epistemic & Verification Classes -->
+  <owl:Class rdf:about="#Theorem">
+    <rdfs:label>Theorem</rdfs:label>
+    <owl:disjointWith rdf:resource="#Conjecture"/>
+  </owl:Class>
+
+  <owl:Class rdf:about="#Conjecture">
+    <rdfs:label>Conjecture</rdfs:label>
+  </owl:Class>
+
+  <owl:Class rdf:about="#ProofObligation">
+    <rdfs:label>ProofObligation</rdfs:label>
+    <owl:disjointWith rdf:resource="#ProofReceipt"/>
+    <owl:disjointWith rdf:resource="#SourceArtifact"/>
+  </owl:Class>
+
+  <owl:Class rdf:about="#ProofReceipt">
+    <rdfs:label>ProofReceipt</rdfs:label>
+    <owl:disjointWith rdf:resource="#SourceArtifact"/>
+  </owl:Class>
+
+  <owl:Class rdf:about="#SourceArtifact">
+    <rdfs:label>SourceArtifact</rdfs:label>
+  </owl:Class>
+
+  <!-- Specialized Subclasses for Hardware, Uncomputation & DAG Aspects -->
+  <owl:Class rdf:about="#BoundedArithmeticKernel">
+    <rdfs:subClassOf rdf:resource="#SourceArtifact"/>
+    <rdfs:comment>Bounded-width arithmetic or hardware witness kernel; does not by itself establish unbounded conjectures.</rdfs:comment>
+  </owl:Class>
+
+  <owl:Class rdf:about="#UncomputationWitness">
+    <rdfs:subClassOf rdf:resource="#ProofReceipt"/>
+    <rdfs:comment>Witness confirming inverse reduction and clean ancilla restoration without residual garbage.</rdfs:comment>
+  </owl:Class>
+
+  <owl:Class rdf:about="#DifferentialOracleReceipt">
+    <rdfs:subClassOf rdf:resource="#ProofReceipt"/>
+    <rdfs:comment>Cross-model or hardware-to-trace differential verification receipt.</rdfs:comment>
+  </owl:Class>
+
+  <owl:Class rdf:about="#AspectInvertedDagNode">
+    <rdfs:subClassOf rdf:resource="#ProofObligation"/>
+    <rdfs:comment>Sink-oriented dependency node with explicit hole constraints and aspect bindings.</rdfs:comment>
+  </owl:Class>
+
+  <!-- Object Properties & Structural Axioms -->
+  <owl:ObjectProperty rdf:about="#hasObligation">
+    <rdfs:domain rdf:resource="#Theorem"/>
+    <rdfs:range rdf:resource="#ProofObligation"/>
+  </owl:ObjectProperty>
+
+  <owl:ObjectProperty rdf:about="#derivedFrom">
+    <rdfs:domain rdf:resource="#ProofObligation"/>
+    <rdfs:range rdf:resource="#SourceArtifact"/>
+  </owl:ObjectProperty>
+
+  <owl:ObjectProperty rdf:about="#hasReceipt">
+    <rdfs:domain rdf:resource="#ProofObligation"/>
+    <rdfs:range rdf:resource="#ProofReceipt"/>
+  </owl:ObjectProperty>
+
+  <owl:ObjectProperty rdf:about="#dependsOn">
+    <rdf:type rdf:resource="http://www.w3.org/2002/07/owl#TransitiveProperty"/>
+    <rdfs:domain rdf:resource="#ProofObligation"/>
+    <rdfs:range rdf:resource="#ProofObligation"/>
+  </owl:ObjectProperty>
+
+  <owl:ObjectProperty rdf:about="#hasVerifiedReceipt">
+    <rdfs:domain rdf:resource="#Theorem"/>
+    <rdfs:range rdf:resource="#ProofReceipt"/>
+    <owl:propertyChainAxiom rdf:parseType="Collection">
+      <owl:ObjectProperty rdf:about="#hasObligation"/>
+      <owl:ObjectProperty rdf:about="#hasReceipt"/>
+    </owl:propertyChainAxiom>
+  </owl:ObjectProperty>
+
+  <!-- Datatype Properties -->
+  <owl:DatatypeProperty rdf:about="#epistemicStatus">
+    <rdf:type rdf:resource="http://www.w3.org/2002/07/owl#FunctionalProperty"/>
+    <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#string"/>
+  </owl:DatatypeProperty>
+
+  <owl:DatatypeProperty rdf:about="#sha256">
+    <rdf:type rdf:resource="http://www.w3.org/2002/07/owl#FunctionalProperty"/>
+    <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#string"/>
+  </owl:DatatypeProperty>
+
+  <owl:DatatypeProperty rdf:about="#kernelAccepted">
+    <rdf:type rdf:resource="http://www.w3.org/2002/07/owl#FunctionalProperty"/>
+    <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#boolean"/>
+  </owl:DatatypeProperty>
+
+  <owl:DatatypeProperty rdf:about="#bitWidth">
+    <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#nonNegativeInteger"/>
+  </owl:DatatypeProperty>
+
+  <owl:DatatypeProperty rdf:about="#scopeBoundaryNote">
+    <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#string"/>
+  </owl:DatatypeProperty>
+
+  <!-- Named Individuals -->
+  <owl:NamedIndividual rdf:about="#Beal">
+    <rdf:type rdf:resource="#Conjecture"/>
+    <epistemicStatus rdf:datatype="http://www.w3.org/2001/XMLSchema#string">open</epistemicStatus>
+  </owl:NamedIndividual>
+
+  <owl:NamedIndividual rdf:about="#FermatLastTheorem">
+    <rdf:type rdf:resource="#Theorem"/>
+    <epistemicStatus rdf:datatype="http://www.w3.org/2001/XMLSchema#string">proven</epistemicStatus>
+    <kernelAccepted rdf:datatype="http://www.w3.org/2001/XMLSchema#boolean">true</kernelAccepted>
+  </owl:NamedIndividual>
+
+  <owl:NamedIndividual rdf:about="#BealArithmetic16BitKernel">
+    <rdf:type rdf:resource="#BoundedArithmeticKernel"/>
+    <bitWidth rdf:datatype="http://www.w3.org/2001/XMLSchema#nonNegativeInteger">33</bitWidth>
+    <scopeBoundaryNote rdf:datatype="http://www.w3.org/2001/XMLSchema#string">Bounded square-sum test kernel only; does not encode arbitrary exponents or establish Beal or FLT.</scopeBoundaryNote>
+  </owl:NamedIndividual>
+
+  <owl:NamedIndividual rdf:about="#Red2PreserveNode">
+    <rdf:type rdf:resource="#AspectInvertedDagNode"/>
+    <derivedFrom rdf:resource="#BealArithmetic16BitKernel"/>
+  </owl:NamedIndividual>
+
+  <owl:NamedIndividual rdf:about="#DifferentialOracleReceipt140">
+    <rdf:type rdf:resource="#DifferentialOracleReceipt"/>
+    <kernelAccepted rdf:datatype="http://www.w3.org/2001/XMLSchema#boolean">true</kernelAccepted>
+  </owl:NamedIndividual>
+
 </rdf:RDF>

@@ -57,13 +57,14 @@ The two parts are deliberately separated. The Lean library is the verified proof
 | Banned-token scan | `grep` over `BealChain/`, `BealChain.lean`, `Audit.lean` | [scripts/verify.sh](scripts/verify.sh) | Clean |
 | XML specification of the conjecture | `spec/beal.xml` (BEAL-HOL-001) | [snapkitty-beal/spec/beal.xml](snapkitty-beal/spec/beal.xml) | Present |
 | XSLT transformation to obligations | `theorem-to-obligations.xsl` via `xsltproc` | [snapkitty-beal/xslt/theorem-to-obligations.xsl](snapkitty-beal/xslt/theorem-to-obligations.xsl) | `make transform` exit 0 |
-| Agda statement and conditional reduction | `Beal.agda`, `BealReduction.agda` | [snapkitty-beal/agda/](snapkitty-beal/agda/) | Present, not run here (Agda not installed) |
+| Agda statement and conditional reduction | `Beal.agda`, `BealReduction.agda` | [snapkitty-beal/agda/](snapkitty-beal/agda/) | `make agda-check` exit 0 (real arithmetic, no postulates) |
 | ASP dependency and eligibility rules | `dependencies.lp` (clingo) | [snapkitty-beal/asp/dependencies.lp](snapkitty-beal/asp/dependencies.lp) | Present |
-| OWL ontology of theorem entities | `theorem.owl` | [snapkitty-beal/ontology/theorem.owl](snapkitty-beal/ontology/theorem.owl) | Present |
+| OWL ontology of theorem entities | `theorem.owl` (v2.0.0-owl2) | [snapkitty-beal/ontology/theorem.owl](snapkitty-beal/ontology/theorem.owl) | Well-formed, 9 classes, 5 individuals |
 | Bluespec bounded square checker | `BealArithmetic.bsv` | [snapkitty-beal/hardware/BealArithmetic.bsv](snapkitty-beal/hardware/BealArithmetic.bsv) | Present |
 | C11 reference for the square check | `beal_ref.c` | [snapkitty-beal/hardware/beal_ref.c](snapkitty-beal/hardware/beal_ref.c) | `make c-check` exit 0 |
 | ATS2 foreign-function contract | `beal_contract.dats` | [snapkitty-beal/ats/beal_contract.dats](snapkitty-beal/ats/beal_contract.dats) | Present |
-| Mustache obligation template | `obligation.mustache` | [snapkitty-beal/templates/obligation.mustache](snapkitty-beal/templates/obligation.mustache) | Present |
+| Mustache obligation template | `obligation.mustache` | [snapkitty-beal/templates/obligation.mustache](snapkitty-beal/templates/obligation.mustache) | `make render` exit 0 (4 obligations rendered, SHA-256 stamped) |
+| DAG renderer and aspect node | `dag/render.c`, `dag/render_all.sh`, `dag/red2.preserve.xml` | [snapkitty-beal/dag/](snapkitty-beal/dag/) | Renderer compiles clean (`-Wall -Wextra -Werror -pedantic`); node well-formed |
 
 ---
 
@@ -107,7 +108,7 @@ flowchart TB
 
 The Lean pipeline processes a Beal instance in order. The input is a tuple `(A, B, C, x, y, z)` with `A, B, C` positive, `x, y, z` greater than 2, and `A, B, C` pairwise coprime. Step 1 replaces each exponent with a prime at least 3 or with 4. Step 2 examines the reduced triple and classifies it. Step 3 attaches Frey-curve data. The Sturm bounds give the verification limits for the modular-form side. The hypothesis structures sit at the end of the pipeline: they are the inputs that the deep results would supply, and the two conditional theorems (`known_signature_no_primitive_solutions`, `conditional_beal_distinct_primes`) are proved from them, not from an unconditional claim.
 
-The skeleton is centered on `spec/beal.xml`. That file is the single source of truth for the theorem statement, its provenance, its four open holes, and its five invariants. The XSLT stylesheet is a deterministic function from that file to an obligation set. The Agda modules, the ASP rules, the OWL ontology, and the hardware references all read from the same specification, but none of them modifies it. The Makefile exposes three checks: `transform` (XSLT), `agda-check` (Agda), and `c-check` (C11 compilation).
+The skeleton is centered on `spec/beal.xml`. That file is the single source of truth for the theorem statement, its provenance, its four open holes, and its five invariants. The XSLT stylesheet is a deterministic function from that file to an obligation set. The Agda modules, the ASP rules, the OWL ontology, and the hardware references all read from the same specification, but none of them modifies it. The Makefile exposes four checks: `transform` (XSLT), `render` (Mustache rendering of every obligation), `agda-check` (Agda), and `c-check` (C11 compilation).
 
 Data flows in one direction in both subsystems. In the Lean chain, data flows from the input instance through the three steps to the Sturm bounds and the hypothesis structures. In the skeleton, data flows from the XML specification outward to the obligations, the Agda statements, the ASP eligibility, and the hardware checks. There is no feedback loop, no mutable shared state, and no cross-subsystem dependency: the Lean library does not import the skeleton, and the skeleton does not import the Lean library.
 
@@ -481,9 +482,9 @@ The repository contains three GitHub Actions workflows in [.github/workflows/](.
 | `create-release.yml` | (release) | The standard `lake new` release workflow. |
 | `update.yml` | (scheduled / manual) | The standard `lake new` update workflow. |
 
-These workflows are present in the repository but no CI run has been recorded against this tree yet, because the repository has not been pushed to GitHub. No build badge, release, or CI status is claimed in this README, because there is no run to cite. When the repository is pushed, `lean_action_ci.yml` will run on the next push or pull request and will build the library with the pinned toolchain.
+The repository was pushed to GitHub and `lean_action_ci.yml` has run. The Lean build step (`leanprover/lean-action@v1`) passes: the library builds cleanly with the pinned toolchain. The documentation step (`leanprover-community/docgen-action@v1`) fails on the pushed tree; the library build itself is green. No build badge is claimed in this README, because the workflow is not fully green. The `create-release.yml` workflow has run successfully on the pushed tree.
 
-There is no deployment step. The deliverables are the source tree, the compiled Lean library (produced by `lake build`), the audit output (produced by `lake env lean Audit.lean`), and the generated skeleton obligations (produced by `make transform`). Nothing in this repository deploys a service, publishes a package to a registry, or writes to a production system.
+There is no deployment step. The deliverables are the source tree, the compiled Lean library (produced by `lake build`), the audit output (produced by `lake env lean Audit.lean`), the generated skeleton obligations (produced by `make transform`), and the rendered obligation nodes (produced by `make render`). Nothing in this repository deploys a service, publishes a package to a registry, or writes to a production system.
 
 ---
 

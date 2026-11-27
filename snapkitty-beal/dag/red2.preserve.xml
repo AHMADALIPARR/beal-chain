@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Copyright (C) 2026 AHMADALIPARR | SPDX-License-Identifier: AGPL-3.0-only -->
+<aspect-dag-node id="red2.preserve" direction="inverted" hole="open">
+  <aspect kind="invariant" target-edge="re_s_half" mode="fail-closed"/>
+
+  <!-- Inverted edges: consumer/sink points back to its upstream producers -->
+  <upstream-inputs>
+    <input slot="1" ref="jacobi.form_f2" arity="4" role="operator"/>
+    <input slot="2" ref="zeta.call" arity="2" role="operator"/>
+    <input slot="3" ref="hole.identify" status="open" constraint="image_contains_zeta"/>
+    <input slot="4" ref="hole.preserve" status="open" constraint="zeros_on_critical_line"/>
+  </upstream-inputs>
+
+  <!-- Aspect weave: cross-cutting verification & lowering bindings attached to the node -->
+  <aspect-bindings>
+    <aspect name="relational-search" backend="asp-clingo" predicate="proposed_edge(red2, preserve, 4)"/>
+    <aspect name="hardware-witness" backend="bsv-vhdl" width="33" bounded-scope="squares-only"/>
+    <aspect name="differential-oracle" backend="sqlite3" table="traces" check="check-a"/>
+  </aspect-bindings>
+
+  <!-- Uncomputation / inverse reduction rule -->
+  <inverse-reduction>
+    <forward-op>reduce_mod_p</forward-op>
+    <uncompute-op>invert_carry_ping_pong</uncompute-op>
+    <ancilla-state clean="true" expected="0"/>
+  </inverse-reduction>
+</aspect-dag-node>
