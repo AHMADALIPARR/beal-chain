@@ -3,8 +3,12 @@
 XSLTPROC ?= xsltproc
 AGDA ?= agda
 BSC ?= $(HOME)/workspace/.tools/bsc/bsc-2026.07.1-debian-12.15/bin/bsc
+FORMULOG_JAR ?= $(HOME)/workspace/.tools/formulog-bin/formulog-0.8.0.jar
+RACKET ?= racket
+COQC ?= coqc
+SWIPL ?= swipl
 
-.PHONY: transform manifest render agda-check c-check c-test ats-check ats-pure-check bsv-check asp-check clean
+.PHONY: transform manifest render agda-check c-check c-test ats-check ats-pure-check bsv-check asp-check formulog-check kanren-check coq-check prolog-check symbolic-check clean
 
 transform:
 	mkdir -p build
@@ -82,5 +86,31 @@ asp-check: transform render
 	bash asp/facts.sh build/obligations.xml build/facts.lp
 	clingo --opt-mode=optN asp/dag.lp build/facts.lp; rc=$$?; case $$rc in 10|30) exit 0;; *) exit $$rc;; esac
 
+# Symbolic lattice kernels (symbolic/): each one is a real program that
+# must run green. Formulog needs Z3 on PATH for is_sat.
+formulog-check:
+	java -jar $(FORMULOG_JAR) symbolic/path_refine.flg --dump-idb
+
+# muKanren / miniKanren kernel (Racket). The file self-tests on load.
+kanren-check:
+	$(RACKET) symbolic/mu_kanren.scm
+
+# Coq specification of the relational kernel. coqc must type-check
+# every definition and prove every lemma (no admit, no Admitted).
+coq-check:
+	$(COQC) symbolic/LatticeKernel.v
+
+# ISO Prolog lattice kernel (SWI-Prolog). demo is a real self-test.
+prolog-check:
+	$(SWIPL) -s symbolic/lattice_kernel.pl -g demo -t halt
+
+# Picat lattice kernel. main is a real self-test.
+picat-check:
+	$(PICAT) symbolic/lattice_kernel.pi
+
+# All symbolic kernels that are green (Picat lands separately).
+symbolic-check: formulog-check kanren-check coq-check prolog-check
+
 clean:
 	rm -rf build dag/render
+	rm -f symbolic/LatticeKernel.vo symbolic/LatticeKernel.vok symbolic/LatticeKernel.vos symbolic/LatticeKernel.glob symbolic/.LatticeKernel.aux symbolic/.lia.cache

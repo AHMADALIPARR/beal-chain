@@ -1,0 +1,214 @@
+(* Copyright (C) 2026 AHMADALIPARR *)
+(* SPDX-License-Identifier: AGPL-3.0-only *)
+(* path_refine.flg -- Stratified Formulog Rules + SMT Formulas + FSM Traces *)
+(* *)
+(* Formulog = Datalog + ML-style types + first-class SMT formulas. *)
+(* Run with the HarvardPL Formulog toolchain (0.8.0) and Z3 on PATH: *)
+(*   java -jar formulog-0.8.0.jar path_refine.flg --dump-idb *)
+(* *)
+(* Guards are native `bool smt` formulas, decided by the real Z3 solver *)
+(* through `is_sat`. There is no satisfiability stub here. *)
+(* *)
+(* Sections: *)
+(*   1. EDB / base relations (ground facts) *)
+(*   2. Stratified IDB rules *)
+(*   3. Path derivation with SMT guards *)
+(*   4. FSM trace derivation *)
+(*   5. Refinement lattice *)
+(*   6. Full-adder relation *)
+(*   7. mem / list relations *)
+(*   8. Output queries *)
+
+(* ============================================================ *)
+(* 1. EDB BASE RELATIONS (ground facts) *)
+(* ============================================================ *)
+
+(* edge(rel_id, src, tgt, guard_formula) -- guard is a native SMT formula *)
+rel edge(i32, i32, i32, bool smt)
+edge(0, 0, 1, `bv_slt(#x[bv[32]], #y[bv[32]])`).
+edge(0, 1, 2, `bv_slt(#y[bv[32]], #z[bv[32]])`).
+edge(0, 2, 3, `#p[bool] /\ ~#q[bool]`).
+edge(0, 0, 2, `bv_slt(#x[bv[32]], #z[bv[32]])`).
+edge(0, 1, 3, `#p[bool]`).
+
+(* fsm_trans(fsm_id, state, input_bit, next_state, output_bit) *)
+rel fsm_trans(string, string, i32, string, i32)
+fsm_trans("fsm0", "s0", 0, "s0", 0).
+fsm_trans("fsm0", "s0", 1, "s1", 0).
+fsm_trans("fsm0", "s1", 0, "s0", 1).
+fsm_trans("fsm0", "s1", 1, "s1", 1).
+
+(* abs_val(id, abstract_domain) -- abstract domain as a proper ADT, *)
+(* not a string encoding, so there is no string parsing to stub. *)
+type abs_dom =
+  | abs_top
+  | abs_conc(i32)
+  | abs_interval(i32, i32)
+
+rel abs_val(i32, abs_dom)
+abs_val(0, abs_top).
+abs_val(1, abs_conc(5)).
+abs_val(2, abs_interval(0, 7)).
+abs_val(3, abs_interval(3, 3)).
+
+(* list_elem(list_id, index, value) -- EDB list encoding *)
+rel list_elem(i32, i32, i32)
+list_elem(0, 0, 1).
+list_elem(0, 1, 2).
+list_elem(0, 2, 3).
+list_elem(1, 0, 4).
+list_elem(1, 1, 5).
+
+(* fsm_step_query(id, init, step, input) *)
+rel fsm_step_query(string, string, i32, i32)
+fsm_step_query("fsm0", "s0", 0, 1).
+
+(* ============================================================ *)
+(* 2. STRATIFIED IDB RULES *)
+(* ============================================================ *)
+
+(* Stratum 0: base reachability (no SMT, no negation) *)
+rel reach(i32, i32, i32)
+reach(R, X, X) :- edge(R, X, _, _).
+reach(R, X, Y) :- edge(R, X, Y, _).
+reach(R, X, Z) :- reach(R, X, Y), edge(R, Y, Z, _).
+
+(* Stratum 1: guarded reachability (real Z3 SAT check on guard) *)
+rel sat_reach(i32, i32, i32)
+sat_reach(R, X, Y) :-
+  edge(R, X, Y, Phi),
+  is_sat(Phi).
+sat_reach(R, X, Z) :-
+  sat_reach(R, X, Y),
+  edge(R, Y, Z, Phi),
+  is_sat(Phi).
+
+(* Stratum 2: path with accumulated formula (conjunction of guards) *)
+rel path_formula(i32, i32, i32, bool smt)
+path_formula(R, X, Y, Phi) :-
+  edge(R, X, Y, Phi),
+  is_sat(Phi).
+path_formula(R, X, Z, `E /\ Phi2`) :-
+  edge(R, X, Y, E),
+  is_sat(E),
+  path_formula(R, Y, Z, Phi2),
+  is_sat(`E /\ Phi2`).
+
+(* ============================================================ *)
+(* 3. FSM TRACE DERIVATION *)
+(* ============================================================ *)
+
+(* fsm_reach(fsm_id, init_state, final_state, steps) *)
+rel fsm_reach(string, string, string, i32)
+fsm_reach(Id, S, S, 0) :- fsm_trans(Id, S, _, _, _).
+fsm_reach(Id, S0, S2, N + 1) :-
+  fsm_trans(Id, S0, _, S1, _),
+  fsm_reach(Id, S1, S2, N),
+  N < 20.
+
+(* fsm_step_result: the transition taken for a given step query *)
+rel fsm_step_result(string, i32, string, i32)
+fsm_step_result(Id, Step, Nst, Out) :-
+  fsm_step_query(Id, S, Step, Inp),
+  fsm_trans(Id, S, Inp, Nst, Out).
+
+(* ============================================================ *)
+(* 4. REFINEMENT LATTICE *)
+(* ============================================================ *)
+
+(* Finite domain of concrete values refinement is checked against.
+   Refinement is only meaningful over a bounded set of test values. *)
+rel test_nat(i32)
+test_nat(0).
+test_nat(1).
+test_nat(2).
+test_nat(3).
+test_nat(4).
+test_nat(5).
+test_nat(6).
+test_nat(7).
+
+(* refines(id, n) -- abstract value abs_val(id) refines concrete Nat n *)
+rel refines(i32, i32)
+refines(Id, N) :-
+  abs_val(Id, abs_top),
+  test_nat(N).
+refines(Id, N) :-
+  abs_val(Id, abs_conc(N)),
+  test_nat(N).
+refines(Id, N) :-
+  abs_val(Id, abs_interval(Lo, Hi)),
+  test_nat(N),
+  Lo <= N,
+  N <= Hi.
+
+(* ============================================================ *)
+(* 5. FULL-ADDER RELATION *)
+(* ============================================================ *)
+
+rel member_bit(i32)
+member_bit(0).
+member_bit(1).
+
+(* full_add_result(a, b, cin, s, cout) where all values are 0 or 1 *)
+rel full_add_result(i32, i32, i32, i32, i32)
+full_add_result(A, B, Cin, S, Cout) :-
+  member_bit(A), member_bit(B), member_bit(Cin),
+  i32_srem(A + B + Cin, 2) = S,
+  i32_sdiv(A + B + Cin, 2) = Cout.
+
+(* ============================================================ *)
+(* 6. MEM / LIST RELATIONS (step-indexed encoding) *)
+(* ============================================================ *)
+
+(* list_contains(list_id, value) *)
+rel list_contains(i32, i32)
+list_contains(L, V) :- list_elem(L, _, V).
+
+(* Length of a list of (index, value) pairs, used to count list elements. *)
+fun len_pair(xs : (i32 * i32) list) : i32 =
+  match xs with
+  | [] => 0
+  | _ :: rest => 1 + len_pair(rest)
+  end
+
+(* list_length(list_id, len) -- via the ?? wildcard, which returns *)
+(* the list of matching (index, value) pairs; its length is the count. *)
+rel list_length(i32, i32)
+list_length(L, N) :-
+  list_elem(L, _, _),
+  Vs = list_elem(L, ??, ??),
+  N = len_pair(Vs).
+
+(* list_concat_elem(l1_id, l2_id, out_id, index, value) *)
+(* Concatenate two indexed lists into a third (out_id = L1*10000 + L2). *)
+rel list_concat_elem(i32, i32, i32, i32, i32)
+list_concat_elem(L1, L2, Out, I, V) :-
+  list_elem(L1, I, V),
+  list_elem(L2, _, _),
+  Out = L1 * 10000 + L2.
+list_concat_elem(L1, L2, Out, J, V) :-
+  list_elem(L2, I, V),
+  list_length(L1, N1),
+  J = I + N1,
+  Out = L1 * 10000 + L2.
+
+(* ============================================================ *)
+(* 7. OUTPUT QUERIES *)
+(* ============================================================ *)
+
+(* All guarded paths in relation 0 *)
+rel query_sat_reach_0(i32, i32)
+query_sat_reach_0(X, Y) :- sat_reach(0, X, Y).
+
+(* All FSM reachable states from s0 in fsm0 *)
+rel query_fsm_reach_fsm0(string, i32)
+query_fsm_reach_fsm0(S, N) :- fsm_reach("fsm0", "s0", S, N).
+
+(* Path formulas for relation 0 *)
+rel query_path_formula_0(i32, i32, bool smt)
+query_path_formula_0(X, Y, Phi) :- path_formula(0, X, Y, Phi).
+
+(* Full adder check *)
+rel query_full_add(i32, i32, i32, i32, i32)
+query_full_add(A, B, Cin, S, Cout) :- full_add_result(A, B, Cin, S, Cout).
