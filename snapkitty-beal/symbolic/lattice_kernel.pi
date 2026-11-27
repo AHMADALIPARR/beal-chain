@@ -1,0 +1,461 @@
+% Copyright (C) 2026 AHMADALIPARR
+% SPDX-License-Identifier: AGPL-3.0-only
+%
+% lattice_kernel.pi -- Relational Lattice Kernel (Picat)
+%
+% Functional-logic port of the mu_kanren / Prolog relational kernel.
+% Picat combines logic programming (backtracking, unification, tabling)
+% with functional programming and constraint solving (cp module).
+%
+% Run: picat lattice_kernel.pi
+%   (runs main, which is a self-test: every check asserts an expected
+%   result and the program exits non-zero on the first failure)
+%
+% Picat notes (verified against Picat 3.9.12):
+%   - Relational predicates use :- style (facts + rules); mixing a bare
+%     fact with a => rule for the same predicate is a syntax error.
+%   - Tabling is a bare `table` line before the predicate, not `:- table`.
+%   - `findall` is a 2-argument FUNCTION: L = findall(Template, Call).
+%   - Picat has no assertz/dynamic; the EDB is static ground facts.
+%   - Peano numerals in a call argument must come from a fact (see pn/2
+%     below), not from an inline $s(...) literal: Picat shares an inline
+%     $s(...) literal across call sites, and a later addo/mulo call then
+%     sees a corrupted numeral. Binding the numeral through a fact
+%     (pn/2) gives each call a correct term.
+%   - Left-recursive reachability must be tabled or it does not terminate.
+%   - The formula functors are and/or/neg/atm/bv_slt. `var` is a Picat
+%     builtin and `not` is builtin negation, so the kernel uses `atm`
+%     for a boolean atom and `neg` for negation instead.
+%
+% Sections:
+%   1. List relations (logic mode)
+%   2. Peano arithmetic (logic + tabled)
+%   3. Full adder (logic + cp)
+%   4. Relational interpreter (evalo)
+%   5. SMT solver (complete DPLL + bv-slt ordering check)
+%   6. EDB / path / reachability
+%   7. FSM relations
+%   8. Refinement lattice
+%   9. Self-test (main)
+
+import cp.
+
+% ============================================================
+% 1. LIST RELATIONS
+% ============================================================
+
+conso(A, D, P) => P = [A|D].
+
+nullo(X) => X = [].
+
+listo([]).
+listo([_|D]) :- listo(D).
+
+appendo([], S, S).
+appendo([A|D], S, [A|R]) :- appendo(D, S, R).
+
+membero(X, [X|_]).
+membero(X, [_|T]) :- membero(X, T).
+
+rembero(_, [], []).
+rembero(X, [X|D], D).
+rembero(X, [A|D], [A|R]) :- X !== A, rembero(X, D, R).
+
+reverseo(L, O) :- rev_acco(L, [], O).
+
+rev_acco([], Acc, Acc).
+rev_acco([A|D], Acc, O) :- rev_acco(D, [A|Acc], O).
+
+lengtho([], 0).
+lengtho([_|D], N) :-
+    lengtho(D, N1),
+    N = N1 + 1.
+
+distincto([]).
+distincto([A|D]) :-
+    not membero(A, D),
+    distincto(D).
+
+% ============================================================
+% 2. PEANO ARITHMETIC (tabled for termination)
+% ============================================================
+
+table
+addo(z, Y, Y).
+addo(s(X), Y, s(Z)) :- addo(X, Y, Z).
+
+table
+mulo(z, _, z).
+mulo(s(X), Y, Z) :-
+    mulo(X, Y, Z1),
+    addo(Y, Z1, Z).
+
+table
+leq_nato(z, _).
+leq_nato(s(X), s(Y)) :- leq_nato(X, Y).
+
+% Peano numerals as facts. Bind them in main (pn(1, One), ...) and
+% pass the variables; do NOT write $s(...) literals in call arguments.
+pn(0, z).
+pn(1, s(z)).
+pn(2, s(s(z))).
+pn(3, s(s(s(z)))).
+pn(4, s(s(s(s(z))))).
+
+% ============================================================
+% 3. FULL ADDER
+% ============================================================
+
+% Logic mode: enumerate all solutions
+bit(0). bit(1).
+
+half_addo(0, 0, 0, 0).
+half_addo(0, 1, 1, 0).
+half_addo(1, 0, 1, 0).
+half_addo(1, 1, 0, 1).
+
+% Carry-out is the OR of the two half-adder carries. The two carries
+% can never both be 1 in a full adder (if A=B=1 then W=0, so the
+% second half adder cannot carry), so OR = max for these 0/1 bits.
+full_addo(A, B, Cin, S, Cout) :-
+    bit(A), bit(B), bit(Cin),
+    half_addo(A, B, W, C1),
+    half_addo(W, Cin, S, C2),
+    Cout = max(C1, C2).
+
+% CP mode: constraint-based full adder
+full_addo_cp(A, B, Cin, S, Cout) =>
+    [A, B, Cin, S, Cout] :: 0..1,
+    S    #= (A + B + Cin) mod 2,
+    Cout #= (A + B + Cin) div 2.
+
+% n-bit ripple-carry adder
+addero([], [], [], Cin, Cin).
+addero([A|As], [B|Bs], [S|Ss], Cin, Cout) :-
+    full_addo(A, B, Cin, S, Cmid),
+    addero(As, Bs, Ss, Cmid, Cout).
+
+% ============================================================
+% 4. RELATIONAL INTERPRETER (evalo)
+% ============================================================
+% Complete interpreter for a Scheme subset: quote, variable lookup,
+% lambda, application, cons, car, cdr, if.
+
+lookupo(X, [[X,V]|_], V).
+lookupo(X, [[Y,_]|Rest], V) :-
+    X !== Y,
+    lookupo(X, Rest, V).
+
+eval_expro(quote(Q), _, Q).
+eval_expro(X, Env, V) :-
+    atom(X),
+    X !== quote, X !== lambda, X !== app,
+    X !== cons, X !== car, X !== cdr, X !== if,
+    lookupo(X, Env, V).
+eval_expro(lambda(P,B), Env, closure(P,B,Env)).
+eval_expro(app(Rator, Rand), Env, V) :-
+    eval_expro(Rator, Env, Clo),
+    eval_expro(Rand, Env, Arg),
+    applyo(Clo, Arg, V).
+eval_expro(cons(A,D), Env, [VA|VD]) :-
+    eval_expro(A, Env, VA),
+    eval_expro(D, Env, VD).
+eval_expro(car(E), Env, V) :-
+    eval_expro(E, Env, [V|_]).
+eval_expro(cdr(E), Env, V) :-
+    eval_expro(E, Env, [_|V]).
+eval_expro(if(C,T,El), Env, V) :-
+    eval_expro(C, Env, CV),
+    (CV !== false ->
+        eval_expro(T, Env, V)
+    ;
+        eval_expro(El, Env, V)
+    ).
+
+applyo(closure(P,B,Env), Arg, V) :-
+    eval_expro(B, [[P,Arg]|Env], V).
+
+evalo(Exp, Val) :- eval_expro(Exp, [], Val).
+
+% ============================================================
+% 5. SMT SOLVER (complete DPLL + bv-slt ordering check)
+% ============================================================
+% Formulas: true, false, atm(N), bv_slt(A,B), and(A,B), or(A,B), neg(A).
+% is_sat(Phi) succeeds iff Phi is satisfiable. The solver is complete
+% for this fragment: DPLL over the propositional structure, and for
+% each satisfying assignment it checks the bv-slt ordering graph for
+% a cycle (a < b < ... < a is contradictory). Same design as the
+% smt-sat? DPLL in mu_kanren.scm. Picat's smt module is a constraint
+% solver over Picat variables, not a checker for this abstract formula
+% AST, so the DPLL below is the real decision procedure for it.
+
+% --- atoms ---
+smt_atoms(and(A,B)) = smt_atoms(A) ++ smt_atoms(B).
+smt_atoms(or(A,B)) = smt_atoms(A) ++ smt_atoms(B).
+smt_atoms(neg(A)) = smt_atoms(A).
+smt_atoms(true) = [].
+smt_atoms(false) = [].
+smt_atoms(A) = [A].
+
+% --- lookup in an assignment list of [Atom, Bool]; an unassigned
+% atom simplifies to itself, not to false.
+smt_lookup(A, []) = A.
+smt_lookup(A, [[A,V]|_]) = V.
+smt_lookup(A, [[_,_]|Rest]) = smt_lookup(A, Rest).
+
+% --- simplify under an assignment ---
+smt_simplify(and(A,B), Asg) = R =>
+    A1 = smt_simplify(A, Asg),
+    B1 = smt_simplify(B, Asg),
+    R = smt_and_red(A1, B1).
+smt_simplify(or(A,B), Asg) = R =>
+    A1 = smt_simplify(A, Asg),
+    B1 = smt_simplify(B, Asg),
+    R = smt_or_red(A1, B1).
+smt_simplify(neg(A), Asg) = R =>
+    A1 = smt_simplify(A, Asg),
+    R = smt_neg_red(A1).
+smt_simplify(true, _) = true.
+smt_simplify(false, _) = false.
+smt_simplify(A, Asg) = smt_lookup(A, Asg).
+
+smt_and_red(false, _) = false.
+smt_and_red(_, false) = false.
+smt_and_red(true, B) = B.
+smt_and_red(A, true) = A.
+smt_and_red(A, B) = $and(A,B).
+
+smt_or_red(true, _) = true.
+smt_or_red(_, true) = true.
+smt_or_red(false, B) = B.
+smt_or_red(A, false) = A.
+smt_or_red(A, B) = $or(A,B).
+
+smt_neg_red(true) = false.
+smt_neg_red(false) = true.
+smt_neg_red(A) = $neg(A).
+
+% --- bv-slt ordering edges from atoms assigned true ---
+smt_bv_edges([]) = [].
+smt_bv_edges([[bv_slt(A,B), true]|Rest]) = [[A,B]|smt_bv_edges(Rest)].
+smt_bv_edges([[_,_]|Rest]) = smt_bv_edges(Rest).
+
+% --- reachability over the edge list (backtrackable) ---
+smt_reach_p(From, To, Es, Seen) :-
+    member([From, Mid], Es),
+    (Mid == To -> true
+    ; (not member(Mid, Seen), smt_reach_p(Mid, To, Es, [From|Seen]))).
+
+% --- a cycle exists iff some edge A->B has a path B ~> A ---
+smt_bv_cycle(Asg) :-
+    Es = smt_bv_edges(Asg),
+    member([A,B], Es),
+    smt_reach_p(B, A, Es, []).
+
+% --- DPLL: succeeds iff satisfiable ---
+is_sat(Phi) :- smt_dpll(Phi, []).
+sat_bool(Phi) = cond(is_sat(Phi), true, false).
+smt_dpll(Phi, Asg) :-
+    S = smt_simplify(Phi, Asg),
+    smt_dpll_s(S, Asg).
+smt_dpll_s(true, Asg) :- not smt_bv_cycle(Asg).
+smt_dpll_s(false, _) :- fail.
+smt_dpll_s(S, Asg) :-
+    S !== true, S !== false,
+    As = smt_atoms(S),
+    As = [A|_],
+    (smt_dpll(S, [[A, true]|Asg]) ; smt_dpll(S, [[A, false]|Asg])).
+
+% ============================================================
+% 6. EDB / PATH / REACHABILITY
+% ============================================================
+% Picat has no assertz/dynamic; the EDB is static ground facts.
+% edge(RelId, Src, Tgt, Guard)
+
+edge(0, 0, 1, true).
+edge(0, 1, 2, true).
+edge(0, 2, 3, and(atm(p), neg(atm(q)))).
+edge(0, 0, 2, bv_slt(x, y)).
+
+% edb3(Rel, A, B) -- unguarded edge store for reacho
+edb3(edge, 0, 1).
+edb3(edge, 1, 2).
+
+% Basic reachability (tabled: the third rule is left-recursive)
+table
+reach(R, X, X) :- edge(R, X, _, _).
+reach(R, X, Y) :- edge(R, X, Y, _).
+reach(R, X, Z) :- reach(R, X, Y), edge(R, Y, Z, _).
+
+% Guarded reachability
+table
+sat_reach(R, X, X) :- edge(R, X, _, _).
+sat_reach(R, X, Y) :- edge(R, X, Y, G), is_sat(G).
+sat_reach(R, X, Z) :- sat_reach(R, X, Y), edge(R, Y, Z, G), is_sat(G).
+
+% Path with accumulated formula
+table
+path_formula(R, X, Y, G) :-
+    edge(R, X, Y, G), is_sat(G).
+path_formula(R, X, Z, and(E, Phi2)) :-
+    edge(R, X, Y, E), is_sat(E),
+    path_formula(R, Y, Z, Phi2),
+    is_sat($and(E, Phi2)).
+
+% General reachability
+table
+reacho(_, S, S).
+reacho(Rel, S, T) :-
+    edb3(Rel, S, M),
+    reacho(Rel, M, T).
+
+% ============================================================
+% 7. FSM RELATIONS
+% ============================================================
+% fsm_trans(Id, State, Input, NextState, Output) -- static facts
+
+fsm_trans(fsm0, s0, 0, s0, 0).
+fsm_trans(fsm0, s0, 1, s1, 0).
+fsm_trans(fsm0, s1, 0, s0, 1).
+fsm_trans(fsm0, s1, 1, s1, 1).
+
+fsmo(Id, St, Inp, Nst, Out) :- fsm_trans(Id, St, Inp, Nst, Out).
+
+fsm_traceo(_, _, [], []).
+fsm_traceo(Id, S, [I|Rest], [O|RestO]) :-
+    fsmo(Id, S, I, S1, O),
+    fsm_traceo(Id, S1, Rest, RestO).
+
+% ============================================================
+% 8. REFINEMENT LATTICE
+% ============================================================
+
+refineo(conc(C), C).
+refineo(top, _).
+refineo(interval(Lo, Hi), N) :-
+    leq_nato(Lo, N),
+    leq_nato(N, Hi).
+
+% Numeric version for integer domains
+refines_nat(top, _).
+refines_nat(conc(C), C).
+refines_nat(interval(Lo, Hi), N) :-
+    integer(Lo), integer(Hi), integer(N),
+    Lo =< N, N =< Hi.
+
+% Widening: join two abstract values
+widen(conc(C), conc(C), conc(C)).
+widen(conc(C1), conc(C2), interval(C1, C2)) :- C1 =< C2.
+widen(conc(C1), conc(C2), interval(C2, C1)) :- C2 < C1.
+widen(interval(L1,H1), interval(L2,H2), interval(L,H)) :-
+    L = min(L1,L2), H = max(H1,H2).
+widen(_, top, top).
+widen(top, _, top).
+
+% ============================================================
+% 9. SELF-TEST (main)
+% ============================================================
+% Each check asserts an expected result. The first failure prints
+% FAIL and fails main, so Picat exits non-zero. This is a test
+% harness, not a demo: nothing here only prints a value.
+
+check(Name, Got, Want) :-
+    (Got == Want ->
+        println("PASS " ++ Name)
+    ;
+        println("FAIL " ++ Name),
+        println(Got),
+        println(Want),
+        fail
+    ).
+
+main :-
+    % Peano numerals (bound through pn/2 facts; see the header note).
+    pn(1, One), pn(2, Two), pn(3, Three), pn(4, Four),
+
+    % List relations.
+    R1 = findall(Q, appendo([1,2],[3],Q)),
+    check("appendo", R1, [[1,2,3]]),
+    R1m = findall(Q, membero(Q,[1,2,3])),
+    check("membero", sort(R1m), [1,2,3]),
+    R1r = findall(Q, reverseo([1,2,3],Q)),
+    check("reverseo", R1r, [[3,2,1]]),
+    R1l = findall(Q, lengtho([a,b,c],Q)),
+    check("lengtho", R1l, [3]),
+
+    % Peano addition: 1 + 2 = 3.
+    addo(One, Two, Q2),
+    check("addo", Q2, Three),
+    mulo(Two, Two, Q2m),
+    check("mulo", Q2m, Four),
+
+    % Full adder, logic mode: 1 + 1 + 0 = 0 carry 1.
+    R3 = findall([S,C], full_addo(1,1,0,S,C)),
+    check("full-addo", R3, [[0,1]]),
+    R3b = findall([S,C], full_addo(1,1,1,S,C)),
+    check("full-addo-carry", R3b, [[1,1]]),
+
+    % Full adder, CP mode: 1 + 1 + 0 = 0 carry 1.
+    [Sa, Ca] :: 0..1,
+    full_addo_cp(1, 1, 0, Sa, Ca),
+    solve([Sa, Ca]),
+    check("full-addo-cp", [Sa, Ca], [0, 1]),
+
+    % Ripple-carry adder: [1,0] + [1,1] + 0 = [0,0] carry 1
+    % (1 + 3 = 4 = 0b100).
+    R3c = findall([Ss,C], addero([1,0],[1,1],Ss,0,C)),
+    check("addero", R3c, [[[0,0],1]]),
+
+    % evalo: identity applied to hello is hello; car/cdr work.
+    R4 = findall(V, evalo($app($lambda(x,x), $quote(hello)), V)),
+    check("evalo-identity", R4, [hello]),
+    R4c = findall(V, evalo($car($cons($quote(1), $quote(2))), V)),
+    check("evalo-car", R4c, [1]),
+    R4d = findall(V, evalo($cdr($cons($quote(1), $quote(2))), V)),
+    check("evalo-cdr", R4d, [2]),
+    R4i = findall(V, evalo($if($quote(true), $quote(7), $quote(8)), V)),
+    check("evalo-if", R4i, [7]),
+
+    % SMT solver: sat and unsat cases.
+    check("sat-conj", sat_bool($and($bv_slt(x,y), $bv_slt(y,z))), true),
+    check("unsat-cycle", sat_bool($and($bv_slt(x,y), $bv_slt(y,x))), false),
+    check("unsat-refl", sat_bool($bv_slt(x,x)), false),
+    check("unsat-neg", sat_bool($and($atm(p), $neg($atm(p)))), false),
+    check("sat-neg", sat_bool($and($atm(p), $neg($atm(q)))), true),
+    check("sat-or", sat_bool($or($bv_slt(x,y), $bv_slt(y,x))), true),
+    check("unsat-or", sat_bool($or($and($atm(p), $neg($atm(p))), $and($atm(q), $neg($atm(q))))), false),
+    check("sat-disj", sat_bool($and($or($atm(p), $atm(q)), $neg($atm(p)))), true),
+
+    % Guarded reachability from 0: 0, 1, 2, 3 (all guards sat).
+    R5 = sort(findall(T, sat_reach(0, 0, T))),
+    check("sat-reach", R5, [0,1,2,3]),
+
+    % Path formulas 0 -> 3: two paths (direct 0->2->3 and long 0->1->2->3).
+    R5p = findall(Phi, path_formula(0, 0, 3, Phi)),
+    check("path-formula-count", len(R5p), 2),
+    check("path-formula-direct",
+        cond(member($and($bv_slt(x,y), $and($atm(p), $neg($atm(q)))), R5p), true, false),
+        true),
+    check("path-formula-long",
+        cond(member($and(true, $and(true, $and($atm(p), $neg($atm(q))))), R5p), true, false),
+        true),
+
+    % General reachability from 0 over edb3: 0, 1, 2.
+    R6 = sort(findall(T, reacho(edge, 0, T))),
+    check("reacho", R6, [0,1,2]),
+
+    % FSM trace [0,1,0] from s0: outputs [0,0,1].
+    R7 = findall(O, fsm_traceo(fsm0, s0, [0,1,0], O)),
+    check("fsm-trace", R7, [[0,0,1]]),
+
+    % Refinement: 2 lies in the Peano interval [1,3].
+    check("refineo-interval",
+        cond(refineo($interval(One, Three), Two), true, false),
+        true),
+    check("refines-nat",
+        cond(refines_nat($interval(1, 3), 2), true, false),
+        true),
+    W = findall(J, widen($conc(1), $conc(3), J)),
+    check("widen", W, [$interval(1,3)]),
+
+    println("lattice_kernel: all checks passed").

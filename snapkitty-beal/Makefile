@@ -7,8 +7,9 @@ FORMULOG_JAR ?= $(HOME)/workspace/.tools/formulog-bin/formulog-0.8.0.jar
 RACKET ?= racket
 COQC ?= coqc
 SWIPL ?= swipl
+PICAT ?= $(HOME)/workspace/.tools/Picat/picat
 
-.PHONY: transform manifest render agda-check c-check c-test ats-check ats-pure-check bsv-check asp-check formulog-check kanren-check coq-check prolog-check symbolic-check clean
+.PHONY: transform manifest render agda-check c-check c-test ats-check ats-pure-check bsv-check asp-check formulog-check kanren-check coq-check prolog-check picat-check symbolic-check clean
 
 transform:
 	mkdir -p build
@@ -108,8 +109,8 @@ prolog-check:
 picat-check:
 	$(PICAT) symbolic/lattice_kernel.pi
 
-# All symbolic kernels that are green (Picat lands separately).
-symbolic-check: formulog-check kanren-check coq-check prolog-check
+# All symbolic kernels.
+symbolic-check: formulog-check kanren-check coq-check prolog-check picat-check
 
 clean:
 	rm -rf build dag/render

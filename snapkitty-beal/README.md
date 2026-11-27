@@ -15,7 +15,7 @@ This repository is an executable architecture with an explicit mathematical trus
 7. Agda is the mathematical proof checker. The Agda modules state the conjecture over real arithmetic (power by recursion, Euclidean gcd, a constructive greater-than-one predicate) and prove the computational witnesses by `refl`. A proof receipt is emitted only after the configured verifier returns success.
 8. The C11 reference (`hardware/beal_ref.c`) implements a bounded Beal-instance checker: general exponents with overflow-safe 64-bit arithmetic and explicit status codes (equal, not equal, overflow, invalid). The Bluespec modules (`hardware/BealArithmetic.bsv`, `hardware/bluespec/BealCheck.bsv`) implement the same check in hardware, and the ATS2 contracts (`ats/beal_contract.dats`, `hardware/ats/beal_check_pure.dats`) drive the C reference and run a pure-ATS bounded check. None of these proves Beal, whose exponents must all exceed 2 and whose statement is open.
 9. The higher-order schema (`agda/SnapKitty/`) quantifies over admissible predicates on exponent triples and requires the Beal conclusion for every admissible predicate. Both the higher-order schema and the ordinary Beal statement are types only; no proof term is given.
-10. `symbolic/` holds four independent lattice kernels that power the DAG as the relational/numerical cross-check when the ASP answer set fails: Formulog (`path_refine.flg`), muKanren/miniKanren (`mu_kanren.scm`), Coq (`LatticeKernel.v`), and ISO Prolog (`lattice_kernel.pl`). Each implements the same relational kernel — lists, Peano arithmetic, full adder, relational interpreter, SMT-guarded paths, FSM, refinement lattice — and each carries a real satisfiability check (DPLL or Z3), not a stub. They are independent of the ASP program and of each other, so a failure in one language's solver does not take out the cross-check.
+10. `symbolic/` holds five independent lattice kernels that power the DAG as the relational/numerical cross-check when the ASP answer set fails: Formulog (`path_refine.flg`), muKanren/miniKanren (`mu_kanren.scm`), Coq (`LatticeKernel.v`), ISO Prolog (`lattice_kernel.pl`), and Picat (`lattice_kernel.pi`). Each implements the same relational kernel — lists, Peano arithmetic, full adder, relational interpreter, SMT-guarded paths, FSM, refinement lattice — and each carries a real satisfiability check (DPLL or Z3), not a stub. They are independent of the ASP program and of each other, so a failure in one language's solver does not take out the cross-check.
 
 ## Layout
 
@@ -29,7 +29,7 @@ This repository is an executable architecture with an explicit mathematical trus
 - `docs/`: provenance and mathematical status
 - `templates/`: Mustache obligation template (source of truth for the rendered node format)
 - `examples/`: runnable edge-case tests and a worked Beal example
-- `symbolic/`: four lattice kernels (Formulog, muKanren, Coq, Prolog) — the relational/numerical cross-check for the DAG
+- `symbolic/`: five lattice kernels (Formulog, muKanren, Coq, Prolog, Picat) — the relational/numerical cross-check for the DAG
 - `build/`: generated obligations (`build/obligations.xml`), manifest (`build/manifest.xml`), ASP facts (`build/facts.lp`), and rendered nodes (`build/rendered/*.xml`)
 
 ## Build prerequisites
@@ -45,6 +45,7 @@ This repository is an executable architecture with an explicit mathematical trus
 - Racket for the muKanren kernel
 - Coq (`coqc`) for the Coq specification
 - SWI-Prolog (`swipl`) for the Prolog kernel
+- Picat for the Picat kernel
 
 ## Build and test
 
@@ -63,10 +64,11 @@ make formulog-check
 make kanren-check
 make coq-check
 make prolog-check
+make picat-check
 make symbolic-check
 ```
 
-`make transform` produces `build/obligations.xml` from the canonical spec. `make manifest` produces `build/manifest.xml`, a deterministic manifest of the theorem and its open holes. `make render` builds the Mustache renderer and renders every obligation through `templates/obligation.mustache` into `build/rendered/<id>.xml`, each stamped with the SHA-256 of `spec/beal.xml` and verified well-formed. The Agda modules state the Beal proposition over real arithmetic: no assumed operations, no fake proof. The conditional reduction in `BealReduction.agda` genuinely applies Beal to a reduced coprime solution to derive the contradiction. The higher-order schema in `agda/SnapKitty/` states the Beal conclusion for every admissible exponent predicate; both the schema and the ordinary statement are types only, with no proof term. `make c-test` runs 23 edge-case checks on the bounded instance checker (square kernel, the Beal example 3^3+6^3=3^5, non-solutions, invalid inputs, and the uint64_t overflow boundaries) plus 35 checks on the u32 library. `make ats-check` compiles and runs the ATS2 contract. `make ats-pure-check` compiles and runs the pure-ATS bounded check. `make bsv-check` compiles both Bluespec kernels to Verilog. `make asp-check` runs the complete DAG program in `asp/dag.lp` with clingo (`--opt-mode=optN`): it finds the optimal schedule (makespan 6), verifies the three required obligations, leaves the open conjecture open, and admits. `make symbolic-check` runs the four lattice kernels: Formulog derives the guarded reachability relations with Z3 deciding the guards (6 sat_reach entries, 18 refinements, all 8 full-adder rows), muKanren self-tests 19 checks, Coq type-checks every definition and proves every lemma (0 admits), and Prolog self-tests 33 checks including the DPLL solver and cyclic-path termination.
+`make transform` produces `build/obligations.xml` from the canonical spec. `make manifest` produces `build/manifest.xml`, a deterministic manifest of the theorem and its open holes. `make render` builds the Mustache renderer and renders every obligation through `templates/obligation.mustache` into `build/rendered/<id>.xml`, each stamped with the SHA-256 of `spec/beal.xml` and verified well-formed. The Agda modules state the Beal proposition over real arithmetic: no assumed operations, no fake proof. The conditional reduction in `BealReduction.agda` genuinely applies Beal to a reduced coprime solution to derive the contradiction. The higher-order schema in `agda/SnapKitty/` states the Beal conclusion for every admissible exponent predicate; both the schema and the ordinary statement are types only, with no proof term. `make c-test` runs 23 edge-case checks on the bounded instance checker (square kernel, the Beal example 3^3+6^3=3^5, non-solutions, invalid inputs, and the uint64_t overflow boundaries) plus 35 checks on the u32 library. `make ats-check` compiles and runs the ATS2 contract. `make ats-pure-check` compiles and runs the pure-ATS bounded check. `make bsv-check` compiles both Bluespec kernels to Verilog. `make asp-check` runs the complete DAG program in `asp/dag.lp` with clingo (`--opt-mode=optN`): it finds the optimal schedule (makespan 6), verifies the three required obligations, leaves the open conjecture open, and admits. `make symbolic-check` runs the five lattice kernels: Formulog derives the guarded reachability relations with Z3 deciding the guards (6 sat_reach entries, 18 refinements, all 8 full-adder rows), muKanren self-tests 19 checks, Coq type-checks every definition and proves every lemma (0 admits), Prolog self-tests 33 checks including the DPLL solver and cyclic-path termination, and Picat self-tests 31 checks including the DPLL solver and the complete interpreter.
 
 ## Hardware
 
