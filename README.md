@@ -172,7 +172,7 @@ beal-chain/
 │   ├── examples/beal_instance_test.c
 │   ├── examples/beal_check_u32_test.c
 │   ├── examples/README.md
-│   ├── Makefile                   10 targets: transform, manifest, render, agda-check, c-check, c-test, ats-check, ats-pure-check, bsv-check, asp-check, clean
+│   ├── Makefile                   10 build/check targets (transform, manifest, render, agda-check, c-check, c-test, ats-check, ats-pure-check, bsv-check, asp-check) + clean
 │   ├── .gitignore                 receipts/, *.o, *.hi, *.agdai, *_dats.c, dag/render
 │   └── README.md                  Skeleton README (trust model, layout, build)
 └── .github/workflows/
