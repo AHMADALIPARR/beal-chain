@@ -78,9 +78,9 @@ bsv-check:
 # Generate ASP facts from the obligations and solve the dependency rules.
 # clingo exits 10 or 30 when a model is found (satisfiable); 20 means
 # unsatisfiable (a constraint is violated) and any other code is an error.
-asp-check: transform
+asp-check: transform render
 	bash asp/facts.sh build/obligations.xml build/facts.lp
-	clingo asp/dependencies.lp build/facts.lp; rc=$$?; case $$rc in 10|30) exit 0;; *) exit $$rc;; esac
+	clingo --opt-mode=optN asp/dag.lp build/facts.lp; rc=$$?; case $$rc in 10|30) exit 0;; *) exit $$rc;; esac
 
 clean:
 	rm -rf build dag/render
