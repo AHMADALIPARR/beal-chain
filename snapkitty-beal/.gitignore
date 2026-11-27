@@ -3,4 +3,5 @@ receipts/
 *.hi
 *.agdai
 beal_contract_dats.c
+beal_check_pure_dats.c
 dag/render

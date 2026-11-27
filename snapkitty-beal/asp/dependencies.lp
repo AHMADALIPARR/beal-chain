@@ -7,6 +7,8 @@ eligible(H) :- open(H), not blocked(H).
 closed(H) :- receipt(H, accepted).
 :- closed(H), blocked(H).
 :- receipt(H, accepted), not obligation(H).
+% A conjecture may not be relabeled as proved by the orchestration layer.
+:- source_status(T, "open-conjecture"), declared_proved(T).
 #show open/1.
 #show blocked/1.
 #show eligible/1.

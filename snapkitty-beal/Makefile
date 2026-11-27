@@ -4,12 +4,17 @@ XSLTPROC ?= xsltproc
 AGDA ?= agda
 BSC ?= $(HOME)/workspace/.tools/bsc/bsc-2026.07.1-debian-12.15/bin/bsc
 
-.PHONY: transform render agda-check c-check c-test ats-check bsv-check asp-check clean
+.PHONY: transform manifest render agda-check c-check c-test ats-check ats-pure-check bsv-check asp-check clean
 
 transform:
 	mkdir -p build
 	$(XSLTPROC) -o build/obligations.xml xslt/theorem-to-obligations.xsl spec/beal.xml
 	cat build/obligations.xml
+
+# Deterministic manifest of the theorem and its open holes.
+manifest: transform
+	$(XSLTPROC) -o build/manifest.xml xslt/theorem-to-manifest.xsl spec/beal.xml
+	cat build/manifest.xml
 
 # Render every obligation through templates/obligation.mustache
 # (the source of truth for the node format) into build/rendered/<id>.xml.
@@ -23,6 +28,8 @@ dag/render: dag/render.c
 agda-check:
 	$(AGDA) -i agda agda/Beal.agda
 	$(AGDA) -i agda agda/BealReduction.agda
+	$(AGDA) -i agda agda/SnapKitty/Prelude.agda
+	$(AGDA) -i agda agda/SnapKitty/Beal.agda
 
 c-check:
 	$(CC) -std=c11 -Wall -Wextra -Werror -pedantic -c hardware/beal_ref.c -o /tmp/beal_ref.o
@@ -43,12 +50,25 @@ ats-check:
 	/tmp/beal_ats
 	rm -f beal_contract_dats.c
 
-# Compile the Bluespec kernel to Verilog (zero warnings).
+# Build and run the pure-ATS bounded check (no C FFI).
+# The non-linear Option type needs -DATS_MEMALLOC_LIBC to link.
+# patscc leaves an intermediate beal_check_pure_dats.c in the working
+# directory; it is removed here so it never lands in the tree.
+ats-pure-check:
+	patscc -DATS_MEMALLOC_LIBC -o /tmp/beal_ats_pure \
+		hardware/ats/beal_check_pure.dats
+	/tmp/beal_ats_pure
+	rm -f beal_check_pure_dats.c hardware/ats/beal_check_pure_dats.c
+
+# Compile the Bluespec kernels to Verilog (zero warnings).
 bsv-check:
 	mkdir -p /tmp/bsv_out
 	$(BSC) -u -verilog -vdir /tmp/bsv_out -bdir /tmp/bsv_out \
 		-info-dir /tmp/bsv_out -g mkBealArithmetic \
 		hardware/BealArithmetic.bsv
+	$(BSC) -u -verilog -vdir /tmp/bsv_out -bdir /tmp/bsv_out \
+		-info-dir /tmp/bsv_out -g mkBealCheck \
+		hardware/bluespec/BealCheck.bsv
 
 # Generate ASP facts from the obligations and solve the dependency rules.
 # clingo exits 10 or 30 when a model is found (satisfiable); 20 means

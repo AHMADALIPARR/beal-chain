@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<manifest xmlns:t="urn:snapkitty:theorem:1" theorem="BEAL-HOL-001" version="1.0" status="open-conjecture" logic="higher-order">
+  <obligation id="BEAL-PROOF" kind="open-mathematical-conjecture" blocks="theorem-acceptance" status="open"/>
+  <obligation id="BEAL-FORMALIZATION" kind="Agda-formalization" blocks="theorem-acceptance" status="open"/>
+  <obligation id="FLT-DESCENT-001" kind="well-founded-arithmetic-proof" blocks="conditional-reduction-acceptance" status="open"/>
+  <obligation id="PROVENANCE-REVIEW" kind="source-review" blocks="provenance-acceptance" status="open"/>
+</manifest>

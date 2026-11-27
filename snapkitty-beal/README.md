@@ -13,20 +13,22 @@ This repository is an executable architecture with an explicit mathematical trus
 5. `asp/` resolves dependency/eligibility constraints. Facts are generated from `build/obligations.xml` by `asp/facts.sh` and solved with clingo (`make asp-check`).
 6. `ontology/` holds the Sovereign Verification & Provenance Ontology (v2.0.0-owl2), including the aspect DAG node class and the `Red2PreserveNode` individual.
 7. Agda is the mathematical proof checker. The Agda modules state the conjecture over real arithmetic (power by recursion, Euclidean gcd, a constructive greater-than-one predicate) and prove the computational witnesses by `refl`. A proof receipt is emitted only after the configured verifier returns success.
-8. The C11 reference (`hardware/beal_ref.c`) implements a bounded Beal-instance checker: general exponents with overflow-safe 64-bit arithmetic and explicit status codes (equal, not equal, overflow, invalid). The Bluespec module (`hardware/BealArithmetic.bsv`) implements the same check in hardware, and the ATS2 contract (`ats/beal_contract.dats`) drives the C reference. None of these proves Beal, whose exponents must all exceed 2 and whose statement is open.
+8. The C11 reference (`hardware/beal_ref.c`) implements a bounded Beal-instance checker: general exponents with overflow-safe 64-bit arithmetic and explicit status codes (equal, not equal, overflow, invalid). The Bluespec modules (`hardware/BealArithmetic.bsv`, `hardware/bluespec/BealCheck.bsv`) implement the same check in hardware, and the ATS2 contracts (`ats/beal_contract.dats`, `hardware/ats/beal_check_pure.dats`) drive the C reference and run a pure-ATS bounded check. None of these proves Beal, whose exponents must all exceed 2 and whose statement is open.
+9. The higher-order schema (`agda/SnapKitty/`) quantifies over admissible predicates on exponent triples and requires the Beal conclusion for every admissible predicate. Both the higher-order schema and the ordinary Beal statement are types only; no proof term is given.
 
 ## Layout
 
 - `spec/beal.xml`: canonical theorem and public provenance records
-- `agda/`: theorem statement over real arithmetic, and the conditional-reduction boundary (Beal + descent implies FLT, genuinely using Beal)
+- `agda/`: theorem statement over real arithmetic, and the conditional-reduction boundary (Beal + descent implies FLT, genuinely using Beal); `agda/SnapKitty/` holds the higher-order schema
 - `asp/`: clingo rules plus a facts generator driven by the obligations
 - `ontology/`: OWL/RDF ontology (v2.0.0-owl2)
 - `dag/`: Mustache renderer, render driver, and the `red2.preserve` aspect DAG node
-- `hardware/`: Bluespec bounded Beal-instance kernel and C11 reference
-- `ats/`: ATS2 contract driving the C11 reference
+- `hardware/`: Bluespec bounded Beal-instance kernels and C11 reference
+- `ats/`: ATS2 contract driving the C11 reference; `hardware/ats/` holds a pure-ATS bounded check
+- `docs/`: provenance and mathematical status
 - `templates/`: Mustache obligation template (source of truth for the rendered node format)
 - `examples/`: runnable edge-case tests and a worked Beal example
-- `build/`: generated obligations (`build/obligations.xml`), ASP facts (`build/facts.lp`), and rendered nodes (`build/rendered/*.xml`)
+- `build/`: generated obligations (`build/obligations.xml`), manifest (`build/manifest.xml`), ASP facts (`build/facts.lp`), and rendered nodes (`build/rendered/*.xml`)
 
 ## Build prerequisites
 
@@ -42,16 +44,18 @@ This repository is an executable architecture with an explicit mathematical trus
 
 ```sh
 make transform
+make manifest
 make render
 make agda-check
 make c-check
 make c-test
 make ats-check
+make ats-pure-check
 make bsv-check
 make asp-check
 ```
 
-`make transform` produces `build/obligations.xml` from the canonical spec. `make render` builds the Mustache renderer and renders every obligation through `templates/obligation.mustache` into `build/rendered/<id>.xml`, each stamped with the SHA-256 of `spec/beal.xml` and verified well-formed. The Agda modules state the Beal proposition over real arithmetic: no assumed operations, no fake proof. The conditional reduction in `BealReduction.agda` genuinely applies Beal to a reduced coprime solution to derive the contradiction. `make c-test` runs 23 edge-case checks on the bounded instance checker (square kernel, the Beal example 3^3+6^3=3^5, non-solutions, invalid inputs, and the uint64_t overflow boundaries). `make ats-check` compiles and runs the ATS2 contract. `make bsv-check` compiles the Bluespec kernel to Verilog. `make asp-check` generates ASP facts from the obligations and solves the dependency rules with clingo.
+`make transform` produces `build/obligations.xml` from the canonical spec. `make manifest` produces `build/manifest.xml`, a deterministic manifest of the theorem and its open holes. `make render` builds the Mustache renderer and renders every obligation through `templates/obligation.mustache` into `build/rendered/<id>.xml`, each stamped with the SHA-256 of `spec/beal.xml` and verified well-formed. The Agda modules state the Beal proposition over real arithmetic: no assumed operations, no fake proof. The conditional reduction in `BealReduction.agda` genuinely applies Beal to a reduced coprime solution to derive the contradiction. The higher-order schema in `agda/SnapKitty/` states the Beal conclusion for every admissible exponent predicate; both the schema and the ordinary statement are types only, with no proof term. `make c-test` runs 23 edge-case checks on the bounded instance checker (square kernel, the Beal example 3^3+6^3=3^5, non-solutions, invalid inputs, and the uint64_t overflow boundaries). `make ats-check` compiles and runs the ATS2 contract. `make ats-pure-check` compiles and runs the pure-ATS bounded check. `make bsv-check` compiles both Bluespec kernels to Verilog. `make asp-check` generates ASP facts from the obligations and solves the dependency rules with clingo.
 
 ## Hardware
 

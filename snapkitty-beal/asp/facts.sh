@@ -16,3 +16,11 @@ grep -o '<dependency from="[^"]*" to="[^"]*"' "$OBLIGATIONS" \
   | sed 's/<dependency from="//; s/" to="/,/; s/"$//' \
   | tr 'A-Z-' 'a-z_' \
   | while read -r pair; do echo "depends($pair)." >> "$OUT"; done
+# The theorem's own status, read from the canonical spec (not hardcoded):
+# a conjecture recorded as open-conjecture may never be declared proved.
+SPEC="${SPEC:-spec/beal.xml}"
+if [ -f "$SPEC" ]; then
+  tid=$(grep -o 'id="[^"]*"' "$SPEC" | head -1 | sed 's/id="//; s/"$//' | tr 'A-Z-' 'a-z_')
+  st=$(grep -o 'status="[^"]*"' "$SPEC" | head -1 | sed 's/status="//; s/"$//')
+  [ -n "$tid" ] && [ -n "$st" ] && echo "source_status($tid, \"$st\")." >> "$OUT"
+fi
