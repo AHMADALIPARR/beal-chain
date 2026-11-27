@@ -1,0 +1,15 @@
+{{! Copyright (C) 2026 AHMADALIPARR }}
+{{! SPDX-License-Identifier: AGPL-3.0-only }}
+<proof-obligation id="{{hole_id}}" theorem="{{theorem_id}}">
+  <source-sha256>{{source_sha256}}</source-sha256>
+  <kind>{{kind}}</kind>
+  <status>open</status>
+  <dependencies>
+    {{#dependencies}}<dependency id="{{.}}" />{{/dependencies}}
+  </dependencies>
+  <acceptance>
+    <agda-kernel-check required="true" />
+    <source-lineage-check required="true" />
+    <independent-receipt required="true" />
+  </acceptance>
+</proof-obligation>

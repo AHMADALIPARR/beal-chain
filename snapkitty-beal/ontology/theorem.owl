@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Copyright (C) 2026 AHMADALIPARR -->
+<!-- SPDX-License-Identifier: AGPL-3.0-only -->
+<rdf:RDF xmlns="urn:snapkitty:ontology#" xml:base="urn:snapkitty:ontology" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:rdfs="http://www.w3.org/2000/01/rdf-schema#" xmlns:owl="http://www.w3.org/2002/07/owl#">
+  <owl:Ontology rdf:about="urn:snapkitty:ontology"/>
+  <owl:Class rdf:about="#Theorem"/><owl:Class rdf:about="#Conjecture"/><owl:Class rdf:about="#ProofObligation"/><owl:Class rdf:about="#ProofReceipt"/><owl:Class rdf:about="#SourceArtifact"/>
+  <owl:ObjectProperty rdf:about="#hasObligation"><rdfs:domain rdf:resource="#Theorem"/><rdfs:range rdf:resource="#ProofObligation"/></owl:ObjectProperty>
+  <owl:ObjectProperty rdf:about="#derivedFrom"><rdfs:domain rdf:resource="#ProofObligation"/><rdfs:range rdf:resource="#SourceArtifact"/></owl:ObjectProperty>
+  <owl:ObjectProperty rdf:about="#hasReceipt"><rdfs:domain rdf:resource="#ProofObligation"/><rdfs:range rdf:resource="#ProofReceipt"/></owl:ObjectProperty>
+  <owl:ObjectProperty rdf:about="#dependsOn"><rdfs:domain rdf:resource="#ProofObligation"/><rdfs:range rdf:resource="#ProofObligation"/></owl:ObjectProperty>
+  <owl:DatatypeProperty rdf:about="#epistemicStatus"/><owl:DatatypeProperty rdf:about="#sha256"/><owl:DatatypeProperty rdf:about="#kernelAccepted"/>
+  <owl:NamedIndividual rdf:about="#Beal"><rdf:type rdf:resource="#Conjecture"/><epistemicStatus>open</epistemicStatus></owl:NamedIndividual>
+  <owl:NamedIndividual rdf:about="#FermatLastTheorem"><rdf:type rdf:resource="#Theorem"/><epistemicStatus>proven</epistemicStatus></owl:NamedIndividual>
+</rdf:RDF>

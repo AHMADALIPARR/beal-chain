@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<obligation-set theorem="BEAL-HOL-001" source-version="1.0">
+  <obligation id="BEAL-PROOF" kind="open-mathematical-conjecture" blocks="theorem-acceptance" status="open"/>
+  <obligation id="BEAL-FORMALIZATION" kind="Agda-formalization" blocks="theorem-acceptance" status="open"/>
+  <obligation id="FLT-DESCENT-001" kind="well-founded-arithmetic-proof" blocks="conditional-reduction-acceptance" status="open"/>
+  <obligation id="PROVENANCE-REVIEW" kind="source-review" blocks="provenance-acceptance" status="open"/>
+  <dependency from="BEAL-PROOF" to="BEAL-FORMALIZATION" relation="formalizes"/>
+  <dependency from="BEAL-PROOF" to="FLT-DESCENT-001" relation="supports-specialization"/>
+  <dependency from="PROVENANCE-REVIEW" to="BEAL-PROOF" relation="grounds-claim"/>
+</obligation-set>
