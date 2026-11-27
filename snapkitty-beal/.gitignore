@@ -2,3 +2,5 @@ receipts/
 *.o
 *.hi
 *.agdai
+beal_contract_dats.c
+dag/render

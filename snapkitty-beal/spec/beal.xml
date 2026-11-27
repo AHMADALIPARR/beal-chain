@@ -6,7 +6,7 @@
     <title>Beal's Conjecture</title>
     <description>For positive integers A,B,C and integers x,y,z greater than 2, A^x + B^y = C^z implies gcd(A,B,C) is greater than 1.</description>
     <provenance>
-      <source id="BEAL-CONJECTURE" kind="public-mathematical-conjecture" uri="https://www.ams.org/" verified="false" />
+      <source id="BEAL-CONJECTURE" kind="public-primary-publication" title="A Generalization of Fermat's Last Theorem: The Beal Conjecture and Prize Problem" author="Andrew Beal" journal="Notices of the American Mathematical Society" volume="44" issue="7" year="1997" note="Conjecture formulated 1993; $1,000,000 prize for a proof or counterexample, held in trust by the American Mathematical Society" verified="true" />
       <source id="WILES-1995" kind="public-primary-publication" title="Modular Elliptic Curves and Fermat's Last Theorem" journal="Annals of Mathematics" volume="141" issue="3" pages="443-551" year="1995" />
       <source id="TAYLOR-WILES-1995" kind="public-primary-publication" title="Ring-theoretic properties of certain Hecke algebras" journal="Annals of Mathematics" volume="141" issue="3" pages="553-572" year="1995" />
     </provenance>
